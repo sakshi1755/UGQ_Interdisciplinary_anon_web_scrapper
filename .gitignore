@@ -1,0 +1,21 @@
+# Virtual Environments
+venv/
+env/
+.env
+.venv/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+
+# Scraping Outputs (prevent committing large data and images)
+*.csv
+*.png
+*blueprint.json

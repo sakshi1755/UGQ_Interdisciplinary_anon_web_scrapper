@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VisualScrape — AI Web Scraper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f; --surface: #111118; --surface2: #18181f;
+    --border: #2a2a35; --accent: #7cfc5e; --accent2: #5ef0fc;
+    --accent3: #fc5e7c; --text: #e8e8f0; --muted: #6b6b80;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(124,252,94,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(124,252,94,0.03) 1px, transparent 1px);
+    background-size: 40px 40px; pointer-events: none; z-index: 0;
+  }
+  header { position: relative; z-index: 10; padding: 24px 40px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid var(--border); background: rgba(10,10,15,0.8); backdrop-filter: blur(12px); }
+  .logo { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
+  .logo span { color: var(--text); }
+  .tagline { font-size: 12px; color: var(--muted); font-family: 'Space Mono', monospace; border-left: 1px solid var(--border); padding-left: 16px; margin-left: 4px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); margin-left: auto; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.5;transform:scale(0.8);} }
+  main { position: relative; z-index: 1; max-width: 1300px; margin: 0 auto; padding: 40px 40px 80px; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .panel-header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .panel-num { width: 24px; height: 24px; border-radius: 6px; background: var(--accent); color: #0a0a0f; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+  .panel-title { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text); }
+  .panel-body { padding: 24px; }
+  .config-panel { grid-column: 1 / -1; }
+  .config-grid { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: end; }
+  label { display: block; font-size: 11px; font-family: 'Space Mono', monospace; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+  input[type="text"], input[type="url"], textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'Space Mono', monospace; font-size: 13px; padding: 12px 14px; outline: none; transition: border-color 0.2s; }
+  input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,252,94,0.08); }
+  .btn { padding: 12px 24px; border-radius: 8px; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; border: none; transition: all 0.2s; white-space: nowrap; }
+  .btn-primary { background: var(--accent); color: #0a0a0f; }
+  .btn-primary:hover { background: #8fff6e; box-shadow: 0 0 20px rgba(124,252,94,0.3); transform: translateY(-1px); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: rgba(252,94,124,0.15); color: var(--accent3); border: 1px solid rgba(252,94,124,0.3); padding: 6px 12px; font-size: 11px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+  .api-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .canvas-panel { grid-column: 1; }
+  .canvas-wrapper { position: relative; background: #0d0d14; border-radius: 8px; overflow: hidden; min-height: 360px; display: flex; align-items: center; justify-content: center; }
+  #annotationCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; display: none; }
+  #bgImage { max-width: 100%; max-height: 500px; display: none; border-radius: 4px; }
+  .canvas-tools { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  .tool-hint { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; margin-left: auto; }
+  .tags-panel { grid-column: 2; }
+  .tag-list { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; }
+  .tag-item { display: grid; grid-template-columns: 12px auto 1fr auto; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface2); border-radius: 8px; border: 1px solid var(--border); animation: slideIn 0.2s ease; }
+  @keyframes slideIn { from{opacity:0;transform:translateX(8px);}to{opacity:1;transform:translateX(0);} }
+  .tag-color { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+  .tag-index { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); min-width: 20px; }
+  .tag-input { background: transparent; border: none; border-bottom: 1px solid var(--border); border-radius: 0; padding: 2px 4px; font-size: 12px; color: var(--text); font-family: 'DM Sans', sans-serif; }
+  .tag-input:focus { border-bottom-color: var(--accent); box-shadow: none; }
+  .empty-tags { text-align: center; padding: 32px 16px; color: var(--muted); font-size: 12px; font-family: 'Space Mono', monospace; line-height: 1.8; }
+  .results-panel { grid-column: 1 / -1; }
+  .results-table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { padding: 12px 16px; text-align: left; font-family: 'Space Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); background: var(--surface2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 12px 16px; border-bottom: 1px solid rgba(42,42,53,0.5); vertical-align: top; max-width: 200px; }
+  td .cell-content { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; display: block; color: var(--text); font-size: 12px; }
+  tr:hover td { background: rgba(124,252,94,0.02); }
+  tr:last-child td { border-bottom: none; }
+  .log-panel { grid-column: 1 / -1; }
+  .terminal { background: #07070c; border-radius: 8px; padding: 16px; font-family: 'Space Mono', monospace; font-size: 11px; height: 160px; overflow-y: auto; border: 1px solid var(--border); }
+  .log-line { padding: 2px 0; line-height: 1.6; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from{opacity:0;}to{opacity:1;} }
+  .log-line.info    { color: var(--accent2); }
+  .log-line.success { color: var(--accent); }
+  .log-line.error   { color: var(--accent3); }
+  .log-line.warn    { color: #fcb45e; }
+  .log-line.dim     { color: var(--muted); }
+  .progress-bar-wrap { background: var(--surface2); border-radius: 4px; height: 4px; margin-top: 12px; overflow: hidden; display: none; }
+  .progress-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.4s ease; box-shadow: 0 0 8px var(--accent); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; }
+  .badge-green { background: rgba(124,252,94,0.15); color: var(--accent); }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: var(--surface2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  .upload-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--surface2); }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(124,252,94,0.04); }
+  .upload-zone .icon { font-size: 32px; margin-bottom: 8px; }
+  .upload-zone p { font-size: 13px; color: var(--muted); font-family: 'Space Mono', monospace; }
+  .upload-zone small { font-size: 11px; color: var(--muted); opacity: 0.6; }
+  .serif-label { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 15px; color: var(--muted); margin-bottom: 4px; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; padding: 20px; }
+    .config-panel, .results-panel, .log-panel { grid-column: 1; }
+    .canvas-panel, .tags-panel { grid-column: 1; }
+    .config-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Visual<span>Scrape</span></div>
+  <div class="tagline">AI-powered • No-code • Visual annotation</div>
+  <div class="status-dot"></div>
+</header>
+<main>
+  <div class="panel config-panel">
+    <div class="panel-header"><div class="panel-num">1</div><div class="panel-title">Target & Configuration</div></div>
+    <div class="panel-body">
+      <div class="config-grid">
+        <div><label>Website URL to scrape</label><input type="url" id="targetUrl" placeholder="https://news.ycombinator.com" /></div>
+        <div><label>Items to scrape</label><input type="text" id="itemCount" value="10" style="width:80px" /></div>
+        <div><label>&nbsp;</label><button class="btn btn-ghost" id="fetchPageBtn">Fetch Page →</button></div>
+      </div>
+      <div class="api-row">
+        <div><label>Gemini API Key</label><input type="text" id="geminiKey" placeholder="AIza..." /></div>
+        <div><label>Backend URL</label><input type="text" id="backendUrl" value="http://localhost:5000" /></div>
+      </div>
+    </div>
+  </div>
+  <div class="panel canvas-panel">
+    <div class="panel-header"><div class="panel-num">2</div><div class="panel-title">Annotate Screenshot</div></div>
+    <div class="panel-body">
+      <p class="serif-label">Upload a screenshot, then draw boxes around what you want to extract</p>
+      <div class="upload-zone" id="uploadZone">
+        <div class="icon">🖼️</div>
+        <p>Drop screenshot here or click to upload</p>
+        <small>PNG, JPG, WebP — screenshot of the page you want to scrape</small>
+        <input type="file" id="imageInput" accept="imagegi, '').replace(/```\s*/gi, '').trim();
+  const ESCAPED_QUOTE = '\x00';
+  const safe = clean.replace(/\\"/g, ESCAPED_QUOTE);
+  let depth = 0, start = -1, end = -1;
+  for (let i = 0; i < safe.length; i++) {
+    if (safe[i] === '{') { if (depth === 0) start = i; depth++; }
+    else if (safe[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+  }
+  if (start === -1 || end === -1) {
+    log('No JSON found — trying text extraction...', 'warn');
+    return extractBlueprintFromText(raw);
+  }
+  clean = clean.slice(start, end + 1);
+  try { return JSON.parse(clean); } catch (e1) {}
+  const fixed = clean
+    .replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'")
+    .replace(/,(\s*[}\]])/g, '$1')
+    .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_ ]*)(\s*:)/g, (m, pre, key, col) => `${pre}"${key.trim()}"${col}`);
+  try { return JSON.parse(fixed); } catch (e2) {}
+  log('JSON parse failed — using regex extraction', 'warn');
+  return extractBlueprintFromText(raw);
+}
+function extractBlueprintFromText(raw) {
+  const getValue = (key) => {
+    const m = raw.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 'i'));
+    return m ? m[1].replace(/\\"/g, '"') : null;
+  };
+  let containerSelector = getValue('container_selector') || getValue('container');
+  if (!containerSelector) {
+    const m2 = raw.match(/container[_\s]*selector[^:]*:\s*"([^"]+)"/i);
+    containerSelector = m2 ? m2[1] : null;
+  }
+  if (!containerSelector) throw new Error('Could not extract container_selector from Gemini response');
+  const fields = {};
+  const fieldsBlock = raw.match(/"fields"\s*:\s*\{([\s\S]*?)\}(?=\s*,|\s*\}|\s*$)/);
+  if (fieldsBlock) {
+    const pairs = [...fieldsBlock[1].matchAll(/"((?:[^"\\]|\\.)+)"\s*:\s*"((?:[^"\\]|\\.)*)"/g)];
+    for (const [, k, v] of pairs) {
+      fields[k] = v.replace(/\\"/g, '"');  
+    }
+  }
+  log(`Regex fallback: ${Object.keys(fields).length} fields extracted`, 'warn');
+  return {
+    site_type: getValue('site_type') || 'unknown',
+    container_selector: containerSelector,
+    fields,
+    url_field: getValue('url_field') || null,
+    notes: getValue('notes') || 'regex fallback'
+  };
+}
+function extractFromHTML(html, blueprint, maxItems) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const fields = blueprint.fields || {};
+  let containers;
+  try { containers = Array.from(doc.querySelectorAll(blueprint.container_selector)).slice(0, maxItems); }
+  catch (e) { log(`Invalid selector "${blueprint.container_selector}": ${e.message}`, 'error'); return []; }
+  log(`Static parse: ${containers.length} containers`, 'dim');
+  return containers.map(container => {
+    const item = {};
+    for (const [fieldName, selector] of Object.entries(fields)) {
+      if (!selector) { item[fieldName] = ''; continue; }
+      try {
+        if (selector.startsWith('attribute::')) { item[fieldName] = container.getAttribute(selector.replace('attribute::', '')) || ''; }
+        else { const el = container.querySelector(selector); item[fieldName] = el ? el.textContent.trim().replace(/\s+/g, ' ').substring(0, 300) : ''; }
+      } catch (e) { item[fieldName] = ''; }
+    }
+    return item;
+  }).filter(item => Object.values(item).some(v => v !== ''));
+}
+async function scrapeWithBlueprint(blueprint, url, itemCount) {
+  const res = await fetch(getBackend() + '/scrape', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, container_selector: blueprint.container_selector, fields: blueprint.fields, item_count: itemCount })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error || res.statusText); }
+  return await res.json();
+}
+function buildPrompt(url, annotationDesc, bodyChunk, extraInstr, fieldNames, elementContext) {
+  const fieldsList = fieldNames.map((f, i) => `  ${i+1}. "${f}"`).join('\n');
+  const fieldsTemplate = fieldNames.length > 0
+    ? fieldNames.map(f => `    "${f}": "CSS selector for this field"`).join(',\n')
+    : `    "Field 1": "CSS selector"`;
+  return `You are an expert web scraping engineer. Analyze the screenshots and HTML to find CSS selectors.
+TARGET URL: ${url}
+USER ANNOTATED THESE REGIONS ON THE SCREENSHOT:
+${annotationDesc}
+YOU MUST RETURN SELECTORS FOR ALL ${fieldNames.length} OF THESE FIELDS — do not skip any:
+${fieldsList}
+${extraInstr ? `EXTRA INSTRUCTIONS: ${extraInstr}\n` : ''}
+${elementContext ? `\nACTUAL ELEMENT ATTRIBUTES (inspected live from the DOM — use these to find exact attribute names):\n${elementContext}\n` : ''}
+RENDERED HTML (section containing repeating content):
+${bodyChunk}
+TASK:
+1. Image 1 = user's annotated screenshot with labeled boxes
+2. Image 2 = live page screenshot — locate where those labeled elements appear
+3. Find the repeating container (one per post/video/item/card)
+4. For EVERY field above, find its CSS selector INSIDE that container
+SELECTOR SYNTAX YOU CAN USE:
+- "h3.title"                → standard CSS, extracts inner text
+- "attribute::post-title"   → gets attribute 'post-title' from the container itself
+- "shreddit-score::score"   → finds child <shreddit-score>, gets its 'score' attribute
+- "a#video-title"           → for links, auto-extracts text and href
+- Use aria-label or title attribute when inner text is empty
+- IMPORTANT: use the exact attribute names from the ELEMENT ATTRIBUTES section above
+RETURN ONLY THIS JSON — no markdown, no explanation, start with { end with }:
+{
+  "site_type": "brief description",
+  "container_selector": "CSS selector for each repeating item",
+  "fields": {
+${fieldsTemplate}
+  },
+  "url_field": "field name that is a link, or null",
+  "notes": "brief explanation"
+}`;
+}
+document.getElementById('scrapeBtn').addEventListener('click', async () => {
+  const url        = document.getElementById('targetUrl').value.trim();
+  const geminiKey  = document.getElementById('geminiKey').value.trim();
+  const itemCount  = parseInt(document.getElementById('itemCount').value) || 10;
+  const extraInstr = document.getElementById('extraInstructions').value.trim();
+  if (!url)             { log('⚠ Enter a target URL.', 'warn'); return; }
+  if (!geminiKey)       { log('⚠ Enter your Gemini API key.', 'warn'); return; }
+  if (!state.userImage) { log('⚠ Upload or fetch a screenshot first.', 'warn'); return; }
+  const btn = document.getElementById('scrapeBtn');
+  btn.disabled = true; btn.textContent = '⏳ Working...';
+  progressWrap.style.display = 'block';
+  setProgress(5);
+  try {
+    log('Building annotation context...', 'dim');
+    const s = state.scale || 1;
+    const annotationDesc = state.annotations.length > 0
+      ? state.annotations.map((ann, i) =>
+          `  • Region ${i+1} labeled "${ann.label || `Field ${i+1}`}": pixel (${Math.round(ann.rect.x/s)},${Math.round(ann.rect.y/s)}), size ${Math.round(ann.rect.w/s)}×${Math.round(ann.rect.h/s)}px`
+        ).join('\n')
+      : '  (No regions drawn — infer fields from screenshot)';
+    const fieldNames = state.annotations.length > 0
+      ? state.annotations.map((ann, i) => ann.label || `Field ${i+1}`)
+      : [];
+    log(`Fields to extract: ${fieldNames.join(', ') || '(none labeled)'}`, 'dim');
+    setProgress(10);
+    log('Fetching live page...', 'info');
+    let liveScreenshot = null;
+    let liveHtml = '';
+    try {
+      const fetchRes = await fetch(getBackend() + '/fetch-page', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      if (fetchRes.ok) {
+        const fetchData = await fetchRes.json();
+        liveScreenshot = fetchData.screenshot || null;
+        liveHtml = fetchData.html || '';
+        log(`Live page fetched — ${liveHtml.length} chars HTML`, 'success');
+      }
+    } catch (e) {
+      log(`Could not fetch live page: ${e.message}`, 'warn');
+    }
+    if (!liveHtml && state.pageSource) { liveHtml = state.pageSource; log('Using cached HTML', 'warn'); }
+    const bodyChunk = extractBodyChunk(liveHtml, 12000);
+    log(`Content chunk: ${bodyChunk.length} chars`, 'dim');
+    setProgress(25);
+    log('Inspecting DOM for real element attributes...', 'info');
+    let elementContext = '';
+    try {
+      const inspectRes = await fetch(getBackend() + '/inspect-first-container', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, hint_selector: 'shreddit-post,article,[data-testid],li.thing,ytd-video-renderer,.post' })
+      });
+      if (inspectRes.ok) {
+        const inspectData = await inspectRes.json();
+        elementContext = inspectData.context || '';
+        log(`DOM inspection: ${elementContext.length} chars of element data`, 'success');
+      }
+    } catch (e) {
+      log(`DOM inspection skipped: ${e.message}`, 'dim');
+    }
+    setProgress(35);
+    log('Sending screenshots + HTML + DOM context to Gemini...', 'info');
+    const prompt = buildPrompt(url, annotationDesc, bodyChunk, extraInstr, fieldNames, elementContext);
+    const images = [{ base64: state.userImage.base64, mime: 'image/png' }];
+    if (liveScreenshot) images.push({ base64: liveScreenshot, mime: 'image/png' });
+    const geminiRes = await callGemini(geminiKey, prompt, images);
+    if (!geminiRes) throw new Error('Gemini returned no response');
+    log(`Gemini raw (first 400): ${geminiRes.substring(0, 400).replace(/\n/g,' ')}`, 'dim');
+    log('Parsing blueprint...', 'success');
+    setProgress(50);
+    let blueprint = parseGeminiJSON(geminiRes);
+    for (const fname of fieldNames) {
+      if (blueprint.fields[fname] === undefined) {
+        log(`⚠ Gemini missed field "${fname}"`, 'warn');
+        blueprint.fields[fname] = '';
+      }
+    }
+    log(`Site type: ${blueprint.site_type}`, 'info');
+    log(`Container: ${blueprint.container_selector}`, 'info');
+    Object.entries(blueprint.fields).forEach(([k, v]) => log(`  ${k} → ${v || '(empty)'}`, v ? 'dim' : 'warn'));
+    if (blueprint.notes) log(`Notes: ${blueprint.notes}`, 'dim');
+    setProgress(60);
+    log('Sending selectors to Playwright backend...', 'info');
+    setProgress(68);
+    let results = [], renderedHtml = '';
+    try {
+      const scrapeData = await scrapeWithBlueprint(blueprint, url, itemCount);
+      results = scrapeData.items || [];
+      renderedHtml = scrapeData.rendered_html || '';
+      const found = scrapeData.containers_found ?? '?';
+      log(`Playwright: ${found} containers, ${results.length} items extracted`, results.length > 0 ? 'success' : 'warn');
+    } catch (e) {
+      log(`Backend scrape failed: ${e.message}`, 'error');
+      if (liveHtml) { results = extractFromHTML(liveHtml, blueprint, itemCount); log(`Static fallback: ${results.length} items`, 'warn'); }
+    }
+    setProgress(80);
+    const emptyFields = Object.entries(blueprint.fields).filter(([,v]) => !v).map(([k]) => k);
+    const needsRefinement = results.length < 3 || emptyFields.length > 0;
+    if (needsRefinement) {
+      const htmlForRefine = renderedHtml || liveHtml || '';
+      if (htmlForRefine.length > 500) {
+        if (emptyFields.length > 0) log(`Fields missing selectors: ${emptyFields.join(', ')} — refining...`, 'warn');
+        else log('Low yield — refining with rendered DOM...', 'warn');
+        const refineChunk = extractBodyChunk(htmlForRefine, 15000);
+        log(`Refinement chunk: ${refineChunk.length} chars`, 'dim');
+        const missingNote = emptyFields.length > 0
+          ? `\nCRITICAL: Previous attempt MISSED these fields — you MUST include them: ${emptyFields.join(', ')}`
+          : '';
+        const refinePrompt = `Web scraping for "${url}" needs improvement.
+Previous selectors:
+- Container: ${blueprint.container_selector}
+- Fields found: ${JSON.stringify(blueprint.fields, null, 2)}
+${missingNote}
+${elementContext ? `ACTUAL ELEMENT ATTRIBUTES from live DOM (use these for exact attribute names):\n${elementContext}\n` : ''}
+ACTUAL rendered HTML body (after JavaScript ran):
+${refineChunk}
+ALL required fields: ${fieldNames.join(', ')}
+Find working selectors for every single field from the HTML and element attributes above.
+Return ONLY raw JSON — no markdown, start {, end }:
+{
+  "site_type": "...",
+  "container_selector": "real selector from the HTML above",
+  "fields": {
+    ${fieldNames.map(f => `"${f}": "real selector from HTML or element attrs"`).join(',\n    ')}
+  },
+  "url_field": null,
+  "notes": "what you found"
+}`;
+        const refined = await callGemini(geminiKey, refinePrompt, []);
+        if (refined) {
+          log(`Refinement raw (first 300): ${refined.substring(0, 300).replace(/\n/g,' ')}`, 'dim');
+          try {
+            const bp2 = parseGeminiJSON(refined);
+            if (!bp2.container_selector || bp2.container_selector === 'null') {
+              log('Refined blueprint has no container — skipping', 'warn');
+            } else {
+              log(`Refined container: ${bp2.container_selector}`, 'info');
+              Object.entries(bp2.fields || {}).forEach(([k, v]) => log(`  ${k} → ${v}`, 'dim'));
+              let results2 = [];
+              try {
+                const d2 = await scrapeWithBlueprint(bp2, url, itemCount);
+                results2 = d2.items || [];
+                log(`Refined: ${d2.containers_found ?? '?'} containers, ${results2.length} items`, 'dim');
+              } catch (e) {
+                results2 = extractFromHTML(htmlForRefine, bp2, itemCount);
+                log(`Refined static fallback: ${results2.length} items`, 'dim');
+              }
+              if (results2.length > results.length) {
+                results = results2; blueprint = bp2;
+                log(`Refinement improved yield to ${results.length} items`, 'success');
+              } else {
+                log(`Refinement got ${results2.length} — keeping best`, 'warn');
+              }
+            }
+          } catch (e) { log(`Refinement parse failed: ${e.message}`, 'warn'); }
+        }
+      }
+    }
+    setProgress(95);
+    if (results.length === 0) {
+      log('No items extracted. Try "Fetch Page" first, or check if the site requires login.', 'error');
+    } else {
+      state.results = results;
+      state.fieldNames = Object.keys(blueprint.fields || {});
+      renderResults(results, state.fieldNames);
+      log(`✅ Done! ${results.length} items scraped with ${state.fieldNames.length} fields each.`, 'success');
+    }
+    setProgress(100);
+    setTimeout(() => { progressWrap.style.display = 'none'; setProgress(0); }, 1500);
+  } catch (err) {
+    log(`Error: ${err.message}`, 'error');
+    console.error(err);
+    progressWrap.style.display = 'none';
+  }
+  btn.disabled = false;
+  btn.textContent = '⚡ Analyze & Scrape with AI';
+});
+function renderResults(results, fields) {
+  const panel = document.getElementById('resultsPanel');
+  panel.style.display = 'block';
+  document.getElementById('resultCount').textContent = `${results.length} items`;
+  document.getElementById('tableHead').innerHTML = '<tr>' + ['#', ...fields].map(f => `<th>${f}</th>`).join('') + '</tr>';
+  document.getElementById('tableBody').innerHTML = results.map((row, i) =>
+    '<tr>' +
+    `<td style="color:var(--muted);font-family:'Space Mono',monospace;font-size:10px">${i+1}</td>` +
+    fields.map(f => `<td><span class="cell-content" title="${esc(row[f]||'')}">${esc(row[f]||'—')}</span></td>`).join('') +
+    '</tr>'
+  ).join('');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+document.getElementById('copyJsonBtn').addEventListener('click', () => {
+  navigator.clipboard.writeText(JSON.stringify(state.results, null, 2))
+    .then(() => log('JSON copied.', 'success'))
+    .catch(() => log('Copy failed.', 'warn'));
+});
+document.getElementById('downloadCsvBtn').addEventListener('click', () => {
+  if (!state.results.length) return;
+  const f = state.fieldNames;
+  const csv = [f.join(','), ...state.results.map(r => f.map(k => `"${(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `scrape_${Date.now()}.csv`; a.click();
+  log('CSV downloaded.', 'success');
+});
+function setProgress(pct) { progressBar.style.width = pct + '%'; }
+log('Enter a URL, fetch or upload a screenshot, draw annotation boxes, then hit Scrape.', 'dim');
+log('Tip: "Fetch Page" auto-loads the screenshot via Playwright backend.', 'dim');
+</script>
+</body>
+</html>
