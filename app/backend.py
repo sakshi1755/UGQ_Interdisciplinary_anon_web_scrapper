@@ -1,7 +1,7 @@
 """
 VisualScrape Backend
 ====================
-Uses your real Chrome profile (logged in, cookies, not headless)
+Uses Chrome profile (logged in, cookies, not headless)
 so sites like Reddit/YouTube don't block the scraper.
 headless=False → Chrome opens visibly → looks like a real user → harder to detect as bot
 headless=True  → no window → easily fingerprinted → gets blocked
@@ -64,7 +64,7 @@ def solve_recaptcha_with_buster(page):
         print("[captcha] Looking for CAPTCHA...")
         page.wait_for_timeout(2000)
         recaptcha_frame = page.frame_locator("iframe[title='reCAPTCHA']")
-        checkbox = recaptcha_frame.locator("# #recaptcha-anchor")
+        checkbox = recaptcha_frame.locator("#recaptcha-anchor")
         try:
             checkbox.wait_for(timeout=5000)
         except Exception:
@@ -75,7 +75,7 @@ def solve_recaptcha_with_buster(page):
         page.wait_for_timeout(3000)
         challenge_frame = page.frame_locator("iframe[title='recaptcha challenge expires in two minutes']")
         try:
-            audio_btn = challenge_frame.locator("# #recaptcha-audio-button")
+            audio_btn = challenge_frame.locator("#recaptcha-audio-button")
             audio_btn.wait_for(timeout=5000)
             audio_btn.click()
         except Exception:
@@ -114,10 +114,10 @@ def solve_recaptcha_with_buster(page):
         except sr.RequestError as e:
             print(f"[captcha] Could not request results from Google SR service; {e}")
             return
-        answer_field = challenge_frame.locator("# #audio-response")
+        answer_field = challenge_frame.locator("#audio-response")
         answer_field.fill(text.lower())
         print("[captcha] Typed the answer...")
-        verify_btn = challenge_frame.locator("# #recaptcha-verify-button")
+        verify_btn = challenge_frame.locator("#recaptcha-verify-button")
         verify_btn.click()
         print("[captcha] Submitted! CAPTCHA should be solved!")
         page.wait_for_timeout(3000)

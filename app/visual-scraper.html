@@ -127,7 +127,276 @@
         <div class="icon">🖼️</div>
         <p>Drop screenshot here or click to upload</p>
         <small>PNG, JPG, WebP — screenshot of the page you want to scrape</small>
-        <input type="file" id="imageInput" accept="imagegi, '').replace(/```\s*/gi, '').trim();
+        <input type="file" id="imageInput" accept="image/*" style="display:none;" />
+      </div>
+      <div class="canvas-wrapper" id="canvasWrapper" style="display:none;">
+        <img id="bgImage" />
+        <canvas id="annotationCanvas"></canvas>
+      </div>
+      <div class="canvas-tools" id="canvasTools" style="display:none;">
+        <button class="btn btn-ghost" id="clearBoxesBtn">Clear Boxes</button>
+        <span class="tool-hint">Click & drag to draw a box</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel tags-panel">
+    <div class="panel-header"><div class="panel-num">3</div><div class="panel-title">Define Fields</div></div>
+    <div class="panel-body">
+      <div class="tag-list" id="tagList">
+        <div class="empty-tags">Draw a box on the image to create a field.</div>
+      </div>
+      <div style="margin-top:20px;">
+        <label>Extra Instructions for AI (Optional)</label>
+        <textarea id="extraInstructions" rows="2" placeholder="e.g. 'Extract the price without the currency symbol'"></textarea>
+      </div>
+      <div style="margin-top:20px;">
+        <button class="btn btn-primary" id="scrapeBtn" style="width:100%;">⚡ Analyze & Scrape with AI</button>
+      </div>
+      <div class="progress-bar-wrap" id="progressWrap"><div class="progress-bar" id="progressBar" style="width:0%;"></div></div>
+    </div>
+  </div>
+
+  <div class="panel results-panel" id="resultsPanel" style="display:none;">
+    <div class="panel-header">
+      <div class="panel-num">4</div><div class="panel-title">Data Extracted</div>
+      <div style="margin-left:auto; display:flex; gap:8px;">
+        <button class="btn btn-ghost" id="copyJsonBtn">Copy JSON</button>
+        <button class="btn btn-primary" id="downloadCsvBtn">Download CSV</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <p id="resultCount" style="margin-bottom:12px; font-family:'Space Mono', monospace; font-size:12px; color:var(--accent);"></p>
+      <div class="results-table-wrap">
+        <table>
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel log-panel">
+    <div class="panel-header"><div class="panel-num">5</div><div class="panel-title">Terminal Logs</div></div>
+    <div class="panel-body">
+      <div class="terminal" id="terminal"></div>
+    </div>
+  </div>
+</main>
+<script>
+const state = {
+  userImage: null,
+  pageSource: null,
+  scale: 1,
+  annotations: [],
+  results: [],
+  fieldNames: []
+};
+
+function getBackend() {
+  return document.getElementById('backendUrl').value.trim().replace(/\/$/, '');
+}
+
+const term = document.getElementById('terminal');
+function log(msg, type='info') {
+  const d = document.createElement('div');
+  d.className = 'log-line ' + type;
+  d.textContent = `> ${msg}`;
+  term.appendChild(d);
+  term.scrollTop = term.scrollHeight;
+}
+
+const uploadZone = document.getElementById('uploadZone');
+const imageInput = document.getElementById('imageInput');
+const bgImage = document.getElementById('bgImage');
+const canvas = document.getElementById('annotationCanvas');
+const ctx = canvas.getContext('2d');
+const canvasWrapper = document.getElementById('canvasWrapper');
+const canvasTools = document.getElementById('canvasTools');
+const tagList = document.getElementById('tagList');
+const progressWrap = document.getElementById('progressWrap');
+const progressBar = document.getElementById('progressBar');
+
+uploadZone.addEventListener('click', () => imageInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleImage(e.dataTransfer.files[0]);
+});
+imageInput.addEventListener('change', e => { if (e.target.files[0]) handleImage(e.target.files[0]); });
+
+function handleImage(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    state.userImage = { base64: e.target.result.split(',')[1], mime: file.type };
+    bgImage.src = e.target.result;
+    bgImage.onload = initCanvas;
+    uploadZone.style.display = 'none';
+    canvasWrapper.style.display = 'flex';
+    canvasTools.style.display = 'flex';
+    log('Screenshot loaded.', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function initCanvas() {
+  const mw = canvasWrapper.clientWidth;
+  const mh = 500;
+  const iw = bgImage.naturalWidth;
+  const ih = bgImage.naturalHeight;
+  const scale = Math.min(mw/iw, mh/ih, 1);
+  state.scale = scale;
+  
+  const cw = iw * scale;
+  const ch = ih * scale;
+  bgImage.style.width = cw + 'px';
+  bgImage.style.height = ch + 'px';
+  bgImage.style.display = 'block';
+  
+  canvas.width = cw;
+  canvas.height = ch;
+  canvas.style.display = 'block';
+  drawAnnotations();
+}
+
+let isDrawing = false;
+let startX, startY;
+
+canvas.addEventListener('mousedown', e => {
+  isDrawing = true;
+  const rect = canvas.getBoundingClientRect();
+  startX = e.clientX - rect.left;
+  startY = e.clientY - rect.top;
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!isDrawing) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  drawAnnotations();
+  ctx.strokeStyle = '#7cfc5e';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(startX, startY, x - startX, y - startY);
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (!isDrawing) return;
+  isDrawing = false;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const w = x - startX;
+  const h = y - startY;
+  if (Math.abs(w) > 10 && Math.abs(h) > 10) {
+    const box = {
+      x: w > 0 ? startX : x,
+      y: h > 0 ? startY : y,
+      w: Math.abs(w),
+      h: Math.abs(h)
+    };
+    state.annotations.push({ rect: box, label: `Field ${state.annotations.length + 1}` });
+    drawAnnotations();
+    renderTags();
+  }
+});
+
+function drawAnnotations() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  state.annotations.forEach((ann, i) => {
+    ctx.strokeStyle = '#7cfc5e';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(ann.rect.x, ann.rect.y, ann.rect.w, ann.rect.h);
+    ctx.fillStyle = 'rgba(124,252,94,0.2)';
+    ctx.fillRect(ann.rect.x, ann.rect.y, ann.rect.w, ann.rect.h);
+    
+    ctx.fillStyle = '#7cfc5e';
+    ctx.font = '12px "Space Mono"';
+    ctx.fillText((i+1).toString(), ann.rect.x + 4, ann.rect.y + 14);
+  });
+}
+
+document.getElementById('clearBoxesBtn').addEventListener('click', () => {
+  state.annotations = [];
+  drawAnnotations();
+  renderTags();
+});
+
+function renderTags() {
+  if (state.annotations.length === 0) {
+    tagList.innerHTML = '<div class="empty-tags">Draw a box on the image to create a field.</div>';
+    return;
+  }
+  tagList.innerHTML = state.annotations.map((ann, i) => `
+    <div class="tag-item">
+      <div class="tag-color" style="background:#7cfc5e"></div>
+      <div class="tag-index">${i+1}</div>
+      <input type="text" class="tag-input" value="${ann.label}" oninput="state.annotations[${i}].label = this.value" placeholder="Field name">
+      <button class="btn btn-danger" onclick="removeTag(${i})">X</button>
+    </div>
+  `).join('');
+}
+
+window.removeTag = (i) => {
+  state.annotations.splice(i, 1);
+  drawAnnotations();
+  renderTags();
+};
+
+document.getElementById('fetchPageBtn').addEventListener('click', async () => {
+  const url = document.getElementById('targetUrl').value.trim();
+  if (!url) { log('Enter a URL first', 'warn'); return; }
+  const btn = document.getElementById('fetchPageBtn');
+  btn.disabled = true; btn.textContent = 'Fetching...';
+  try {
+    log(`Requesting ${url} from backend...`, 'info');
+    const res = await fetch(getBackend() + '/fetch-page', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ url })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    state.pageSource = data.html;
+    if (data.screenshot) {
+      state.userImage = { base64: data.screenshot, mime: 'image/png' };
+      bgImage.src = 'data:image/png;base64,' + data.screenshot;
+      bgImage.onload = initCanvas;
+      uploadZone.style.display = 'none';
+      canvasWrapper.style.display = 'flex';
+      canvasTools.style.display = 'flex';
+      log('Screenshot loaded from backend.', 'success');
+    }
+  } catch (e) {
+    log(`Fetch failed: ${e.message}`, 'error');
+  }
+  btn.disabled = false; btn.textContent = 'Fetch Page →';
+});
+
+async function callGemini(key, text, images) {
+  const contents = [{ role: 'user', parts: [] }];
+  if (text) contents[0].parts.push({ text });
+  for (const img of images) {
+    contents[0].parts.push({ inlineData: { mimeType: img.mime, data: img.base64 } });
+  }
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents, generationConfig: { temperature: 0 } })
+  });
+  if (!res.ok) throw new Error(`Gemini error: ${res.status} ${res.statusText}`);
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+function extractBodyChunk(html, maxLen) {
+  if (!html) return '';
+  const bodyStart = html.toLowerCase().indexOf('<body');
+  if (bodyStart !== -1) return html.substring(bodyStart, bodyStart + maxLen);
+  return html.substring(0, maxLen);
+}
+
+function parseGeminiJSON(raw) {
+  let clean = raw.replace(/```json/gi, '').replace(/```\s*/gi, '').trim();
   const ESCAPED_QUOTE = '\x00';
   const safe = clean.replace(/\\"/g, ESCAPED_QUOTE);
   let depth = 0, start = -1, end = -1;

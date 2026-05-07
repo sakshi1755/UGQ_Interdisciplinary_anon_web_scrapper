@@ -1,5 +1,4 @@
-"""
-🌐 Universal AI-Powered Scraper (Two-Phase Discovery)
+""" Universal AI-Powered Scraper (Two-Phase Discovery)
 ======================================================
 Phase 1: Gemini analyzes the LISTING page  → finds post containers, titles, URLs
 Phase 2: Gemini analyzes a real POST PAGE  → finds body text, comments selectors
@@ -162,17 +161,17 @@ RULES:
 
             match = re.search(r'\{.*\}', raw, re.DOTALL)
             if not match:
-                print(f"❌ Gemini returned no JSON for {phase} phase.")
+                print(f" Gemini returned no JSON for {phase} phase.")
                 print("Raw:", raw[:300])
                 return None
 
             parsed = json.loads(match.group(0))
-            print(f"\n🤖 Gemini [{phase}] discovered:")
+            print(f"\n Gemini [{phase}] discovered:")
             print(json.dumps(parsed, indent=2))
             return parsed
 
         except Exception as e:
-            print(f"❌ Gemini error ({phase}): {e}")
+            print(f" Gemini error ({phase}): {e}")
             return None
         
     def extract_posts(self, page, blueprint: dict, base_url: str) -> list[dict]:
@@ -186,7 +185,7 @@ RULES:
         site_type    = blueprint.get("site_type", "other")
 
         containers = page.locator(selector).all()
-        print(f"\n📦 Found {len(containers)} containers → '{selector}'")
+        print(f"\n Found {len(containers)} containers → '{selector}'")
 
         posts = []
         for c in containers[:15]:
